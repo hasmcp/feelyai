@@ -26,7 +26,7 @@ PROTOCOL:
 3. EXECUTE: Call the tool using the exact schema you retrieved.
 4. CODE EVALS: You can use evalCode to run any code in browser '{"name": "evalCode", "arguments": {"code": "result = <YOUR_CODE>; return result;"}}'. You must end your code with 'return <VAR>;'
 
-TOOLS: {{tool_names}}
+TOOLS: {{listTools}}
 
 RULES:
 - Use the 'evalCode' tool for all math, logic, and JS execution.
