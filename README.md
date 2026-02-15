@@ -6,6 +6,10 @@ FeelyAI is a powerful, privacy-focused AI chat application that runs entirely in
 
 ![FeelyAI](public/favicon.svg)
 
+## 🌐 [Try Live Demo](https://feelyai.com)
+
+Experience FeelyAI in action at **[feelyai.com](https://feelyai.com)**
+
 ## ✨ Features
 
 ### 🔒 **100% Private & Local**
