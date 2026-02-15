@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <!-- Gradient for the chip -->
+    <linearGradient id="chipGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gradient for the finger -->
+    <linearGradient id="fingerGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FCD34D;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F59E0B;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <radialGradient id="glowGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#60A5FA;stop-opacity:0.8" />
+      <stop offset="50%" style="stop-color:#3B82F6;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#1E40AF;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Microchip body -->
+  <rect x="60" y="80" width="80" height="80" rx="8" fill="url(#chipGradient)" stroke="#312E81" stroke-width="2"/>
+  
+  <!-- Chip circuit pattern -->
+  <circle cx="100" cy="120" r="15" fill="none" stroke="#E0E7FF" stroke-width="1.5" opacity="0.6"/>
+  <circle cx="100" cy="120" r="8" fill="none" stroke="#E0E7FF" stroke-width="1.5" opacity="0.8"/>
+  <line x1="85" y1="120" x2="70" y2="120" stroke="#E0E7FF" stroke-width="1.5" opacity="0.6"/>
+  <line x1="115" y1="120" x2="130" y2="120" stroke="#E0E7FF" stroke-width="1.5" opacity="0.6"/>
+  <line x1="100" y1="105" x2="100" y2="90" stroke="#E0E7FF" stroke-width="1.5" opacity="0.6"/>
+  <line x1="100" y1="135" x2="100" y2="150" stroke="#E0E7FF" stroke-width="1.5" opacity="0.6"/>
+  
+  <!-- Chip pins (left side) -->
+  <rect x="45" y="90" width="15" height="4" fill="#312E81"/>
+  <rect x="45" y="105" width="15" height="4" fill="#312E81"/>
+  <rect x="45" y="120" width="15" height="4" fill="#312E81"/>
+  <rect x="45" y="135" width="15" height="4" fill="#312E81"/>
+  <rect x="45" y="150" width="15" height="4" fill="#312E81"/>
+  
+  <!-- Chip pins (right side) -->
+  <rect x="140" y="90" width="15" height="4" fill="#312E81"/>
+  <rect x="140" y="105" width="15" height="4" fill="#312E81"/>
+  <rect x="140" y="120" width="15" height="4" fill="#312E81"/>
+  <rect x="140" y="135" width="15" height="4" fill="#312E81"/>
+  <rect x="140" y="150" width="15" height="4" fill="#312E81"/>
+  
+  <!-- Chip pins (top) -->
+  <rect x="75" y="65" width="4" height="15" fill="#312E81"/>
+  <rect x="90" y="65" width="4" height="15" fill="#312E81"/>
+  <rect x="105" y="65" width="4" height="15" fill="#312E81"/>
+  <rect x="120" y="65" width="4" height="15" fill="#312E81"/>
+  
+  <!-- Chip pins (bottom) -->
+  <rect x="75" y="160" width="4" height="15" fill="#312E81"/>
+  <rect x="90" y="160" width="4" height="15" fill="#312E81"/>
+  <rect x="105" y="160" width="4" height="15" fill="#312E81"/>
+  <rect x="120" y="160" width="4" height="15" fill="#312E81"/>
+  
+  <!-- Glow effect at touch point -->
+  <circle cx="100" cy="70" r="25" fill="url(#glowGradient)" opacity="0.7"/>
+  
+  <!-- Finger -->
+  <g>
+    <!-- Fingertip -->
+    <ellipse cx="100" cy="45" rx="12" ry="15" fill="url(#fingerGradient)" stroke="#D97706" stroke-width="1.5"/>
+    
+    <!-- Finger segment 1 -->
+    <rect x="94" y="20" width="12" height="25" rx="3" fill="url(#fingerGradient)" stroke="#D97706" stroke-width="1.5"/>
+    
+    <!-- Finger knuckle line -->
+    <line x1="92" y1="35" x2="108" y2="35" stroke="#D97706" stroke-width="1" opacity="0.5"/>
+  </g>
+  
+  <!-- Touch point indicator -->
+  <circle cx="100" cy="70" r="3" fill="#60A5FA" opacity="0.9">
+    <animate attributeName="r" values="3;5;3" dur="1.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.9;0.4;0.9" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- Ripple effect -->
+  <circle cx="100" cy="70" r="8" fill="none" stroke="#60A5FA" stroke-width="2" opacity="0">
+    <animate attributeName="r" values="5;20" dur="1.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.8;0" dur="1.5s" repeatCount="indefinite"/>
+  </circle>
+</svg>

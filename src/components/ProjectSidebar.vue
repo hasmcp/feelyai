@@ -1,0 +1,242 @@
+<script setup>
+import { ref, computed } from 'vue';
+import { useChat } from '../composables/useChat';
+import { 
+  Folder, MessageSquare, Plus, ChevronRight, ChevronDown, 
+  MoreHorizontal, Trash2, Edit2, Settings, Monitor, GripVertical
+} from 'lucide-vue-next';
+
+// Use the shared composable
+const { 
+  projects, currentProjectId, chats, activeChatId, 
+  loadProjects, selectProject, createProject, deleteProject,
+  selectChat, createNewChat, deleteChat, renameChat,
+  selectedModel, availableModels, switchModel,
+  mcpServers, addServer, removeServer, toggleServer
+} = useChat();
+
+const expandedProjects = ref(new Set());
+const isNewProjectModalOpen = ref(false);
+const newProjectName = ref("");
+const editingChatId = ref(null);
+const editChatTitle = ref("");
+
+// Props for communication with parent
+const props = defineProps({
+  isSettingsOpen: Boolean,
+  isAddServerOpen: Boolean
+});
+
+const emit = defineEmits(['open-settings', 'open-add-server']);
+
+// Toggle project expansion
+const toggleProject = (projectId) => {
+  if (expandedProjects.value.has(projectId)) {
+    expandedProjects.value.delete(projectId);
+  } else {
+    // For now, simple single-active project or multi-expand?
+    // Let's allow multi-expand but auto-select the project on click
+    expandedProjects.value.add(projectId);
+    selectProject(projectId);
+  }
+};
+
+// Auto-expand current project on load
+const init = async () => {
+    // Wait for data? 
+    if (currentProjectId.value) {
+        expandedProjects.value.add(currentProjectId.value);
+    }
+};
+
+const handleCreateProject = async () => {
+  if (!newProjectName.value.trim()) return;
+  await createProject(newProjectName.value);
+  newProjectName.value = "";
+  isNewProjectModalOpen.value = false;
+};
+
+const startEditing = (chat) => {
+    editingChatId.value = chat.id;
+    editChatTitle.value = chat.title;
+};
+
+const saveChatTitle = async () => {
+    if (editingChatId.value && editChatTitle.value.trim()) {
+        await renameChat(editingChatId.value, editChatTitle.value);
+    }
+    editingChatId.value = null;
+};
+
+// MCP & Model logic borrowed from Sidebar
+</script>
+
+<template>
+  <aside class="w-80 border-r border-gray-800 flex flex-col bg-gray-950 flex-shrink-0">
+    <!-- Header / Branding -->
+    <div class="h-14 px-4 border-b border-gray-800 flex items-center gap-3 shrink-0">
+        <div class="bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+            <img src="/favicon.svg" class="size-5" alt="Logo" />
+        </div>
+        <h1 class="font-bold text-lg tracking-tight text-white">FeelyAI</h1>
+    </div>
+
+    <!-- Projects & Chats List -->
+    <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-6">
+        
+        <!-- Projects Section -->
+        <div class="space-y-1">
+            <div class="flex items-center justify-between px-2 mb-2">
+                <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Projects</h2>
+                <button @click="isNewProjectModalOpen = true" class="text-gray-500 hover:text-emerald-400 transition-colors">
+                    <Plus class="size-4" />
+                </button>
+            </div>
+
+            <div v-for="project in projects" :key="project.id" class="space-y-1">
+                <!-- Project Item -->
+                <div 
+                    @click="toggleProject(project.id)"
+                    class="group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors select-none"
+                    :class="currentProjectId === project.id ? 'bg-gray-900 text-emerald-400' : 'hover:bg-gray-900 text-gray-400'"
+                >
+                    <component :is="expandedProjects.has(project.id) ? ChevronDown : ChevronRight" class="size-3.5 opacity-75" />
+                    <Folder class="size-4" :class="currentProjectId === project.id ? 'fill-emerald-400/20' : ''" />
+                    <span class="text-sm font-medium truncate flex-1">{{ project.name }}</span>
+                    
+                    <div class="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                        <button 
+                            @click.stop="deleteProject(project.id)" 
+                            class="hover:bg-red-500/20 hover:text-red-400 p-1 rounded transition-all"
+                            title="Delete Project"
+                        >
+                            <Trash2 class="size-3.5" />
+                        </button>
+                        <button 
+                            v-if="currentProjectId === project.id"
+                            @click.stop="createNewChat" 
+                            class="hover:bg-emerald-500/20 hover:text-emerald-400 p-1 rounded transition-all"
+                            title="New Chat"
+                        >
+                            <Plus class="size-3.5" />
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Chats List (for this project) -->
+                <div v-if="expandedProjects.has(project.id)" class="pl-4 space-y-0.5 border-l border-gray-800 ml-5">
+                    <div 
+                        v-for="chat in (project.id === currentProjectId ? chats : [])" 
+                        :key="chat.id"
+                        class="group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors relative"
+                        :class="activeChatId === chat.id ? 'bg-emerald-500/10 text-emerald-400' : 'hover:bg-gray-900 text-gray-400'"
+                        @click="selectChat(chat.id)"
+                    >
+                        <MessageSquare class="size-3.5 opacity-70" />
+                        
+                        <!-- Title or Edit Input -->
+                        <div v-if="editingChatId === chat.id" class="flex-1">
+                            <input 
+                                v-model="editChatTitle" 
+                                @blur="saveChatTitle" 
+                                @keydown.enter.prevent="saveChatTitle"
+                                class="w-full bg-black border border-emerald-500 rounded px-1 py-0.5 text-xs text-white outline-none"
+                                autoFocus
+                            />
+                        </div>
+                        <span v-else class="truncate flex-1">{{ chat.title }}</span>
+
+                        <!-- Chat Actions -->
+                        <div class="hidden group-hover:flex items-center gap-1 absolute right-2 bg-gray-900 shadow-xl pl-2 rounded-l-lg">
+                            <button @click.stop="startEditing(chat)" class="p-1 hover:text-white transition-colors">
+                                <Edit2 class="size-3" />
+                            </button>
+                            <button @click.stop="deleteChat(chat.id)" class="p-1 hover:text-red-400 transition-colors">
+                                <Trash2 class="size-3" />
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="project.id === currentProjectId && chats.length === 0" class="px-4 py-2 text-xs text-gray-600 italic">
+                        No chats yet.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MCP Servers (Moved from App.vue) -->
+        <div class="pt-6 border-t border-gray-800">
+             <div class="flex items-center justify-between px-2 mb-3">
+                <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <Monitor class="size-3" /> MCP Servers
+                </h2>
+                <button @click="emit('open-add-server')" class="text-gray-500 hover:text-emerald-400 transition-colors">
+                    <Plus class="size-4" />
+                </button>
+            </div>
+            
+            <div class="space-y-2">
+                 <div v-for="s in mcpServers" :key="s.id"
+                    class="p-2.5 rounded-lg border border-gray-800 bg-gray-900/40 group hover:border-gray-700 transition-all">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <span class="text-xs font-bold text-gray-300 truncate">{{ s.name || 'Unnamed' }}</span>
+                        <div class="flex gap-1.5">
+                             <button @click="toggleServer(s.id)" :class="s.enabled ? 'text-emerald-400' : 'text-gray-600'">
+                                <div class="size-2 rounded-full" :class="s.enabled ? 'bg-emerald-500' : 'bg-gray-700'"></div>
+                            </button>
+                            <button @click="removeServer(s.id)" class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Trash2 class="size-3" />
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                         <span class="text-[10px] text-gray-500 font-mono truncate max-w-[120px]">{{ s.url }}</span>
+                         <span v-if="s.toolCount" class="text-[9px] bg-gray-800 px-1.5 py-0.5 rounded text-emerald-400/80 font-mono">{{ s.toolCount }} tools</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer / Model Selector -->
+    <div class="p-6 border-t border-gray-800 bg-gray-900/50">
+        <div class="mb-3">
+            <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Active Model</label>
+             <div class="relative">
+                <select :value="selectedModel" @change="switchModel($event.target.value)"
+                    class="w-full bg-gray-950 border border-gray-800 text-gray-300 text-xs rounded-lg focus:ring-emerald-500 focus:border-emerald-500 block p-2.5 appearance-none cursor-pointer hover:border-gray-700 transition-colors">
+                    <option v-for="model in availableModels" :key="model.id" :value="model.id">
+                        {{ model.name }}
+                    </option>
+                </select>
+                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                    <ChevronDown class="size-3.5" />
+                </div>
+            </div>
+        </div>
+        
+        <button @click="emit('open-settings')" class="w-full flex items-center justify-center gap-2 py-2 bg-gray-800 hover:bg-gray-750 border border-gray-700/50 hover:border-gray-600 rounded-lg text-xs font-medium text-gray-400 transition-all">
+            <Settings class="size-3.5" />
+            Settings
+        </button>
+    </div>
+
+    <!-- New Project Modal -->
+    <div v-if="isNewProjectModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-4">Create New Project</h3>
+            <input 
+                v-model="newProjectName" 
+                placeholder="Project Name"
+                class="w-full bg-black border border-gray-700 rounded-lg px-4 py-2 text-white mb-4 focus:ring-1 focus:ring-emerald-500 outline-none"
+                @keydown.enter="handleCreateProject"
+                autoFocus
+            />
+            <div class="flex justify-end gap-2">
+                <button @click="isNewProjectModalOpen = false" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+                <button @click="handleCreateProject" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold">Create</button>
+            </div>
+        </div>
+    </div>
+  </aside>
+</template>

@@ -1,0 +1,28 @@
+{
+  "name": "feelyai",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mlc-ai/web-llm": "^0.2.80",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@tailwindcss/vite": "^4.1.18",
+    "ajv": "^8.17.1",
+    "event-source-polyfill": "^1.0.31",
+    "idb": "^8.0.3",
+    "lucide-vue-next": "^0.563.0",
+    "markdown-it": "^14.1.1",
+    "tailwindcss": "^4.1.18",
+    "vue": "^3.5.25",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.2",
+    "vite": "^7.3.1"
+  }
+}
