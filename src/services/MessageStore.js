@@ -1,14 +1,19 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'webllm_chat_db';
+const ENCRYPTED_DB_NAME = 'webllm_encrypted_db';
 const STORE_NAME = 'messages';
 const PROJECT_STORE = 'projects';
 const CHAT_STORE = 'chats';
+const ENCRYPTED_PROJECT_STORE = 'encrypted_projects';
+const ENCRYPTED_CONTENT_STORE = 'encrypted_content';
 const VERSION = 2; // Incremented
+const ENCRYPTED_VERSION = 1;
 
 export class MessageStore {
     constructor() {
         this._initDb();
+        this._initEncryptedDb();
     }
 
     _initDb() {
@@ -45,6 +50,26 @@ export class MessageStore {
             terminated() {
                 // Handle unexpected termination
                 console.warn('IDB terminated unexpectedly');
+            }
+        });
+    }
+
+    _initEncryptedDb() {
+        this.encryptedDbPromise = openDB(ENCRYPTED_DB_NAME, ENCRYPTED_VERSION, {
+            upgrade(db) {
+                // Encrypted Projects Store
+                if (!db.objectStoreNames.contains(ENCRYPTED_PROJECT_STORE)) {
+                    const projectStore = db.createObjectStore(ENCRYPTED_PROJECT_STORE, { keyPath: 'id' });
+                    projectStore.createIndex('createdAt', 'createdAt');
+                }
+
+                // Encrypted Content Store
+                if (!db.objectStoreNames.contains(ENCRYPTED_CONTENT_STORE)) {
+                    const contentStore = db.createObjectStore(ENCRYPTED_CONTENT_STORE, { keyPath: 'projectId' });
+                }
+            },
+            terminated() {
+                console.warn('Encrypted IDB terminated unexpectedly');
             }
         });
     }
@@ -166,6 +191,86 @@ export class MessageStore {
 
             await db.put(STORE_NAME, message);
             return message;
+        });
+    }
+
+    async deleteMessage(messageId) {
+        return this._run(async (db) => {
+            await db.delete(STORE_NAME, messageId);
+        });
+    }
+
+    // --- Encrypted Projects ---
+    async _runEncrypted(callback) {
+        try {
+            const db = await this.encryptedDbPromise;
+            return await callback(db);
+        } catch (error) {
+            if (error.name === 'InvalidStateError' ||
+                error.message?.includes('closing') ||
+                error.message?.includes('closed')) {
+                console.warn('Encrypted database connection closed, reopening...', error);
+                this._initEncryptedDb();
+                const db = await this.encryptedDbPromise;
+                return await callback(db);
+            }
+            throw error;
+        }
+    }
+
+    async createEncryptedProject(name, passwordHash) {
+        return this._runEncrypted(async (db) => {
+            const project = {
+                id: crypto.randomUUID(),
+                name,
+                passwordHash,
+                isPasswordProtected: true,
+                createdAt: Date.now()
+            };
+            await db.put(ENCRYPTED_PROJECT_STORE, project);
+            return project;
+        });
+    }
+
+    async getEncryptedProjects() {
+        return this._runEncrypted(async (db) => {
+            return db.getAll(ENCRYPTED_PROJECT_STORE);
+        });
+    }
+
+    async getEncryptedProject(id) {
+        return this._runEncrypted(async (db) => {
+            return db.get(ENCRYPTED_PROJECT_STORE, id);
+        });
+    }
+
+    async updateEncryptedProject(project) {
+        return this._runEncrypted(async (db) => {
+            await db.put(ENCRYPTED_PROJECT_STORE, project);
+        });
+    }
+
+    async deleteEncryptedProject(projectId) {
+        return this._runEncrypted(async (db) => {
+            await db.delete(ENCRYPTED_PROJECT_STORE, projectId);
+            await db.delete(ENCRYPTED_CONTENT_STORE, projectId);
+        });
+    }
+
+    async saveEncryptedContent(projectId, encryptedData) {
+        return this._runEncrypted(async (db) => {
+            const content = {
+                projectId,
+                ...encryptedData,
+                updatedAt: Date.now()
+            };
+            await db.put(ENCRYPTED_CONTENT_STORE, content);
+        });
+    }
+
+    async getEncryptedContent(projectId) {
+        return this._runEncrypted(async (db) => {
+            return db.get(ENCRYPTED_CONTENT_STORE, projectId);
         });
     }
 

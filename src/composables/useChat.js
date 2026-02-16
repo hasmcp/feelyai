@@ -1,6 +1,7 @@
 import { ref, reactive, onUnmounted, onMounted, toRaw } from 'vue';
 import { McpClient } from '../services/McpClient';
 import { messageStore } from '../services/MessageStore';
+import EncryptionService from '../services/EncryptionService';
 import LlmWorker from '../workers/llm.worker.js?worker';
 import EvalWorker from '../workers/eval.worker.js?worker';
 import Ajv from "ajv";
@@ -11,10 +12,10 @@ import Ajv from "ajv";
 
 // Define models that support Function Calling (Tools)
 const AVAILABLE_MODELS = [
+  { id: "TinyLlama-1.1B-Chat-v0.4-q4f32_1-MLC-1k", name: "TinyLlama 1.1B" },
   { id: "Hermes-3-Llama-3.1-8B-q4f32_1-MLC", name: "Hermes 3 (Llama 3.1 8B)" },
   { id: "Llama-3.2-3B-Instruct-q4f16_1-MLC", name: "Llama 3.2 3B" },
   { id: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC", name: "Hermes 3 (Llama 3.1 8B - q4f16)" },
-  { id: "TinyLlama-1.1B-Chat-v0.4-q4f32_1-MLC-1k", name: "TinyLlama 1.1B" },
   { id: "Qwen2.5-Coder-3B-Instruct-q4f32_1-MLC", name: "Qwen2.5-Coder-3B" },
 ];
 
@@ -49,12 +50,19 @@ const loadText = ref("Initializing...");
 const messages = ref([]);
 const customSystemPrompt = ref(DEFAULT_SYSTEM_PROMPT);
 
-// --- Project & Chat State ---
+// --- Projects & Chats ---
 const projects = ref([]);
 const currentProjectId = ref(null);
 const chats = ref([]);
 const activeChatId = ref(null);
-const activeChatTitle = ref("");
+const activeChatTitle = ref("General");
+
+// --- Encrypted Projects State ---
+const unlockedProjects = ref(new Map()); // Map<projectId, { chats, messages, systemPrompt }>
+const isUnlockModalOpen = ref(false);
+const unlockingProjectId = ref(null);
+const unlockPassword = ref("");
+const unlockError = ref("");
 
 // Model Selection
 const availableModels = AVAILABLE_MODELS;
@@ -132,7 +140,11 @@ export function useChat() {
 
   // --- Project/Chat Logic ---
   const loadProjects = async () => {
-    projects.value = await messageStore.getProjects();
+    const regularProjects = await messageStore.getProjects();
+    const encryptedProjects = await messageStore.getEncryptedProjects();
+
+    // Combine both types of projects
+    projects.value = [...regularProjects, ...encryptedProjects];
 
     // Create default project if none exist
     if (projects.value.length === 0) {
@@ -174,9 +186,97 @@ export function useChat() {
   };
 
   const createProject = async (name) => {
-    const newProj = await messageStore.createProject(name);
-    projects.value = await messageStore.getProjects(); // Reload to sort
-    await selectProject(newProj.id);
+    const project = await messageStore.createProject(name);
+    projects.value.push(project);
+    await selectProject(project.id);
+  };
+
+  const createEncryptedProject = async (name, password) => {
+    try {
+      // Hash the password
+      const passwordHash = await EncryptionService.hashPassword(password);
+
+      // Create encrypted project in database
+      const project = await messageStore.createEncryptedProject(name, passwordHash);
+
+      // Add to projects list (will show as locked)
+      projects.value.push(project);
+
+      // Create initial empty encrypted content
+      const projectData = {
+        chats: [],
+        messages: [],
+        systemPrompt: null
+      };
+
+      const encryptedData = await EncryptionService.encryptProject(projectData, password);
+      await messageStore.saveEncryptedContent(project.id, encryptedData);
+
+      // Auto-select the project (it will be locked initially)
+      await selectProject(project.id);
+    } catch (error) {
+      console.error('Failed to create encrypted project:', error);
+      throw error;
+    }
+  };
+
+  const unlockProject = async (projectId, password) => {
+    try {
+      unlockError.value = "";
+
+      // Get project metadata
+      const project = await messageStore.getEncryptedProject(projectId);
+      if (!project) {
+        throw new Error('Project not found');
+      }
+
+      // Verify password
+      const isValid = await EncryptionService.verifyPassword(password, project.passwordHash);
+      if (!isValid) {
+        unlockError.value = "Incorrect password";
+        return false;
+      }
+
+      // Get encrypted content
+      const encryptedContent = await messageStore.getEncryptedContent(projectId);
+      if (!encryptedContent) {
+        throw new Error('Encrypted content not found');
+      }
+
+      // Decrypt content
+      const decryptedData = await EncryptionService.decryptProject(encryptedContent, password);
+
+      // Store decrypted data in memory
+      unlockedProjects.value.set(projectId, decryptedData);
+
+      // Close unlock modal
+      isUnlockModalOpen.value = false;
+      unlockingProjectId.value = null;
+      unlockPassword.value = "";
+
+      return true;
+    } catch (error) {
+      console.error('Failed to unlock project:', error);
+      unlockError.value = error.message || "Failed to unlock project";
+      return false;
+    }
+  };
+
+  const lockProject = (projectId) => {
+    // Remove decrypted data from memory
+    unlockedProjects.value.delete(projectId);
+
+    // If this was the current project, clear chats and messages
+    if (currentProjectId.value === projectId) {
+      chats.value = [];
+      messages.value = [];
+    }
+  };
+
+  const isProjectLocked = (projectId) => {
+    const project = projects.value.find(p => p.id === projectId);
+    if (!project || !project.isPasswordProtected) return false;
+    return !unlockedProjects.value.has(projectId);
   };
 
   const selectChat = async (chatId) => {
@@ -221,15 +321,28 @@ export function useChat() {
   };
 
   const deleteProject = async (projectId) => {
-    await messageStore.deleteProject(projectId);
-    projects.value = await messageStore.getProjects();
+    // Find the project to check if it's encrypted
+    const project = projects.value.find(p => p.id === projectId);
+
+    if (project?.isPasswordProtected) {
+      // Delete from encrypted database
+      await messageStore.deleteEncryptedProject(projectId);
+      // Remove from unlocked projects if it was unlocked
+      unlockedProjects.value.delete(projectId);
+    } else {
+      // Delete from regular database
+      await messageStore.deleteProject(projectId);
+    }
+
+    // Reload all projects
+    await loadProjects();
 
     // If deleted active project, switch to default or another
     if (currentProjectId.value === projectId) {
       if (projects.value.length > 0) {
         await selectProject(projects.value[0].id);
       } else {
-        // Creating a new default project if all are gone (shouldn't happen if we block deleting the last one, but safe to handle)
+        // Creating a new default project if all are gone
         const defaultProj = await messageStore.createProject("Default Project");
         projects.value = [defaultProj];
         await selectProject(defaultProj.id);
@@ -1236,10 +1349,19 @@ export function useChat() {
     loadProjects,
     selectProject,
     createProject,
+    createEncryptedProject,
+    unlockProject,
+    lockProject,
+    isProjectLocked,
     deleteProject,
     selectChat,
     createNewChat,
     deleteChat,
-    renameChat
+    renameChat,
+    // --- Encrypted Project State ---
+    isUnlockModalOpen,
+    unlockingProjectId,
+    unlockPassword,
+    unlockError
   };
 }

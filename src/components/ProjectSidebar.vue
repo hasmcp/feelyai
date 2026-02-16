@@ -1,25 +1,28 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useChat } from '../composables/useChat';
-import { 
-  Folder, MessageSquare, Plus, ChevronRight, ChevronDown, 
-  MoreHorizontal, Trash2, Edit2, Settings, Monitor, GripVertical, Cpu,
-  Menu, X, PanelLeftClose, PanelLeft
-} from 'lucide-vue-next';
+import EncryptionService from '../services/EncryptionService';
+import { Folder, Plus, Trash2, MessageSquare, ChevronDown, ChevronRight, Monitor, Settings, X, Menu, PanelLeftClose, PanelLeft, Cpu, Lock, LockOpen, Edit2 } from 'lucide-vue-next';
 
 // Use the shared composable
 const { 
   projects, currentProjectId, chats, activeChatId, 
-  loadProjects, selectProject, createProject, deleteProject,
+  loadProjects, selectProject, createProject, createEncryptedProject, deleteProject,
+  unlockProject, lockProject, isProjectLocked,
   selectChat, createNewChat, deleteChat, renameChat,
   selectedModel, availableModels, switchModel,
   mcpServers, addServer, removeServer, toggleServer,
-  customSystemPrompt, updateProjectSystemPrompt, resetSystemPrompt
+  customSystemPrompt, updateProjectSystemPrompt, resetSystemPrompt,
+  isUnlockModalOpen, unlockingProjectId, unlockPassword, unlockError
 } = useChat();
 
 const expandedProjects = ref(new Set());
 const isNewProjectModalOpen = ref(false);
 const newProjectName = ref("");
+const isPasswordProtected = ref(false);
+const newProjectPassword = ref("");
+const newProjectPasswordConfirm = ref("");
+const passwordError = ref("");
 const editingChatId = ref(null);
 const editChatTitle = ref("");
 const isSystemPromptModalOpen = ref(false);
@@ -109,9 +112,55 @@ const init = async () => {
 
 const handleCreateProject = async () => {
   if (!newProjectName.value.trim()) return;
-  await createProject(newProjectName.value);
+  
+  // Validate password if protection is enabled
+  if (isPasswordProtected.value) {
+    passwordError.value = "";
+    
+    if (!newProjectPassword.value) {
+      passwordError.value = "Password is required";
+      return;
+    }
+    
+    if (newProjectPassword.value.length < 6) {
+      passwordError.value = "Password must be at least 6 characters";
+      return;
+    }
+    
+    if (newProjectPassword.value !== newProjectPasswordConfirm.value) {
+      passwordError.value = "Passwords do not match";
+      return;
+    }
+    
+    // Create encrypted project
+    await createEncryptedProject(newProjectName.value, newProjectPassword.value);
+  } else {
+    // Create normal project
+    await createProject(newProjectName.value);
+  }
+  
+  // Reset form
+  cancelNewProject();
+};
+
+const cancelNewProject = () => {
   newProjectName.value = "";
+  isPasswordProtected.value = false;
+  newProjectPassword.value = "";
+  newProjectPasswordConfirm.value = "";
+  passwordError.value = "";
   isNewProjectModalOpen.value = false;
+};
+
+const handleUnlock = async () => {
+  if (!unlockingProjectId.value || !unlockPassword.value) return;
+  
+  const success = await unlockProject(unlockingProjectId.value, unlockPassword.value);
+  if (success) {
+    // Expand and select the unlocked project
+    expandedProjects.value.add(unlockingProjectId.value);
+    await selectProject(unlockingProjectId.value);
+  }
 };
 
 const startEditing = (chat) => {
@@ -249,7 +298,7 @@ defineExpose({
             <div v-for="project in projects" :key="project.id" class="space-y-1">
                 <!-- Project Item -->
                 <div 
-                    @click="toggleProject(project.id)"
+                    @click="project.isPasswordProtected && isProjectLocked(project.id) ? (unlockingProjectId = project.id, isUnlockModalOpen = true) : toggleProject(project.id)"
                     @mouseenter="(e) => showTooltip(e, project)"
                     @mouseleave="hideTooltip"
                     :class="[
@@ -259,11 +308,20 @@ defineExpose({
                     ]"
                 >
                     <component v-if="isMobile || !isSidebarCollapsed" :is="expandedProjects.has(project.id) ? ChevronDown : ChevronRight" class="size-3.5 opacity-75" />
-                    <Folder class="size-4" :class="currentProjectId === project.id ? 'fill-emerald-400/20' : ''" />
-                    <span v-if="isMobile || !isSidebarCollapsed" class="text-sm font-medium truncate flex-1">{{ project.name }}</span>
+                    
+                    <!-- Lock icon for encrypted projects -->
+                    <Lock v-if="project.isPasswordProtected && isProjectLocked(project.id)" class="size-4 text-yellow-500" />
+                    <LockOpen v-else-if="project.isPasswordProtected" class="size-4 text-emerald-500" />
+                    <Folder v-else class="size-4" :class="currentProjectId === project.id ? 'fill-emerald-400/20' : ''" />
+                    
+                    <!-- Project title (always visible, no blur) -->
+                    <span 
+                        v-if="isMobile || !isSidebarCollapsed" 
+                        class="text-sm font-medium truncate flex-1"
+                    >{{ project.name }}</span>
                     
                     <div 
-                        v-if="isMobile || !isSidebarCollapsed" 
+                        v-if="(isMobile || !isSidebarCollapsed) && !(project.isPasswordProtected && isProjectLocked(project.id))" 
                         :class="[
                             'flex items-center gap-1',
                             isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -411,12 +469,51 @@ defineExpose({
                 v-model="newProjectName" 
                 placeholder="Project Name"
                 class="w-full bg-black border border-gray-700 rounded-lg px-4 py-2 text-white mb-4 focus:ring-1 focus:ring-emerald-500 outline-none"
-                @keydown.enter="handleCreateProject"
+                @keydown.enter="!isPasswordProtected && handleCreateProject"
                 autoFocus
             />
-            <div class="flex justify-end gap-2">
-                <button @click="isNewProjectModalOpen = false" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
-                <button @click="handleCreateProject" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold">Create</button>
+            
+            <!-- Password Protection Toggle -->
+            <label class="flex items-center gap-2 mb-4 cursor-pointer">
+                <input 
+                    type="checkbox" 
+                    v-model="isPasswordProtected"
+                    class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-emerald-500 focus:ring-emerald-500"
+                />
+                <span class="text-sm text-gray-300">Password protect this project</span>
+            </label>
+
+            <!-- Password Fields (shown when checkbox is checked) -->
+            <div v-if="isPasswordProtected" class="space-y-3 mb-4">
+                <input 
+                    v-model="newProjectPassword" 
+                    type="password"
+                    placeholder="Password"
+                    class="w-full bg-black border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-emerald-500 outline-none"
+                />
+                <input 
+                    v-model="newProjectPasswordConfirm" 
+                    type="password"
+                    placeholder="Confirm Password"
+                    class="w-full bg-black border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-emerald-500 outline-none"
+                    @keydown.enter="handleCreateProject"
+                />
+                <p v-if="passwordError" class="text-xs text-red-400">{{ passwordError }}</p>
+            </div>
+
+            <div class="flex gap-2">
+                <button 
+                    @click="handleCreateProject" 
+                    class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                    Create
+                </button>
+                <button 
+                    @click="cancelNewProject" 
+                    class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                    Cancel
+                </button>
             </div>
         </div>
     </div>
@@ -447,6 +544,44 @@ defineExpose({
                     <button @click="isSystemPromptModalOpen = false" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
                     <button @click="saveSystemPrompt" class="px-6 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold">Save</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unlock Project Modal -->
+    <div v-if="isUnlockModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-sm shadow-2xl">
+            <div class="flex items-center gap-3 mb-4">
+                <Lock class="size-5 text-yellow-500" />
+                <h3 class="text-lg font-bold text-white">Unlock Project</h3>
+            </div>
+            
+            <p class="text-sm text-gray-400 mb-4">Enter password to unlock this project</p>
+            
+            <input 
+                v-model="unlockPassword" 
+                type="password"
+                placeholder="Password"
+                class="w-full bg-black border border-gray-700 rounded-lg px-4 py-2 text-white mb-3 focus:ring-1 focus:ring-emerald-500 outline-none"
+                @keydown.enter="handleUnlock"
+                autoFocus
+            />
+            
+            <p v-if="unlockError" class="text-xs text-red-400 mb-3">{{ unlockError }}</p>
+            
+            <div class="flex gap-2">
+                <button 
+                    @click="handleUnlock" 
+                    class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                    Unlock
+                </button>
+                <button 
+                    @click="isUnlockModalOpen = false, unlockPassword = '', unlockError = ''" 
+                    class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                    Cancel
+                </button>
             </div>
         </div>
     </div>

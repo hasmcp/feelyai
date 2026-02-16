@@ -303,7 +303,7 @@ const handleAddServer = (serverData) => {
           </div>
         </div>
 
-        <div class="p-5 border-t border-gray-800 bg-gray-900">
+        <div class="p-5 pt-5.75 border-t border-gray-800 bg-gray-900">
           <div
             class="max-w-3xl mx-auto relative flex items-center bg-gray-800 border border-gray-700 rounded-2xl focus-within:border-emerald-500/50 transition-all px-4 py-2 shadow-xl">
             <textarea v-model="userInput" @keydown.enter.prevent="onSend" placeholder="Ask a question or use a tool..."
