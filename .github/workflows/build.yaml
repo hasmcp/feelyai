@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.G_BUILD_TOKEN }}
 
       # Step 2: Set up the Node.js environment
       - name: Set up Node.js
