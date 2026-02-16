@@ -12,8 +12,8 @@ import Ajv from "ajv";
 
 // Define models that support Function Calling (Tools)
 const AVAILABLE_MODELS = [
-  { id: "TinyLlama-1.1B-Chat-v0.4-q4f32_1-MLC-1k", name: "TinyLlama 1.1B" },
   { id: "Hermes-3-Llama-3.1-8B-q4f32_1-MLC", name: "Hermes 3 (Llama 3.1 8B)" },
+  { id: "TinyLlama-1.1B-Chat-v0.4-q4f32_1-MLC-1k", name: "TinyLlama 1.1B" },
   { id: "Llama-3.2-3B-Instruct-q4f16_1-MLC", name: "Llama 3.2 3B" },
   { id: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC", name: "Hermes 3 (Llama 3.1 8B - q4f16)" },
   { id: "Qwen2.5-Coder-3B-Instruct-q4f32_1-MLC", name: "Qwen2.5-Coder-3B" },
