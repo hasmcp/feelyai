@@ -68,15 +68,22 @@ export class MessageStore {
     }
 
     // --- Projects ---
-    async createProject(name) {
+    async createProject(name, systemPrompt = null) {
         return this._run(async (db) => {
             const project = {
                 id: crypto.randomUUID(),
                 name,
+                systemPrompt: systemPrompt || null,
                 createdAt: Date.now()
             };
             await db.put(PROJECT_STORE, project);
             return project;
+        });
+    }
+
+    async updateProject(project) {
+        return this._run(async (db) => {
+            await db.put(PROJECT_STORE, project);
         });
     }
 

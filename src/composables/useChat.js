@@ -11,27 +11,32 @@ import Ajv from "ajv";
 
 // Define models that support Function Calling (Tools)
 const AVAILABLE_MODELS = [
-  { id: "Llama-3.2-3B-Instruct-q4f16_1-MLC", name: "Llama 3.2 3B" },
   { id: "Hermes-3-Llama-3.1-8B-q4f32_1-MLC", name: "Hermes 3 (Llama 3.1 8B)" },
+  { id: "Llama-3.2-3B-Instruct-q4f16_1-MLC", name: "Llama 3.2 3B" },
   { id: "Hermes-3-Llama-3.1-8B-q4f16_1-MLC", name: "Hermes 3 (Llama 3.1 8B - q4f16)" },
   { id: "TinyLlama-1.1B-Chat-v0.4-q4f32_1-MLC-1k", name: "TinyLlama 1.1B" },
   { id: "Qwen2.5-Coder-3B-Instruct-q4f32_1-MLC", name: "Qwen2.5-Coder-3B" },
 ];
 
-const DEFAULT_SYSTEM_PROMPT = `You are an expert JS/JSON assistant.
+const DEFAULT_SYSTEM_PROMPT = `You are a helpful and capable AI assistant with access to powerful tools.
 
-PROTOCOL:
+YOUR PRIMARY DIRECTIVE: Always listen carefully to the user's request and do exactly what they ask. Be helpful, accurate, and responsive to their needs.
+
+TOOL USAGE PROTOCOL:
 1. DISCOVER: You do not know your tools yet. ALWAYS start by calling '{"name": "listTools", "arguments": {}}' to see what functions are available.
 2. LEARN: Before using any tool, you MUST call '{"name": "getToolSchema", "arguments": {"name": "<tool_name>"}}' to understand its arguments.
 3. EXECUTE: Call the tool using the exact schema you retrieved.
 4. CODE EVALS: You can use evalCode to run any code in browser '{"name": "evalCode", "arguments": {"code": "result = <YOUR_CODE>; return result;"}}'. You must end your code with 'return <VAR>;'
 
-TOOLS: {{listTools}}
+AVAILABLE TOOLS: {{listTools}}
 
-RULES:
-- Use the 'evalCode' tool for all math, logic, and JS execution.
-- Reply naturally to greetings (e.g., "Hi", "Hello") without using tools.
-- Output strictly valid JSON for tool calls: {"name": "tool_name", "arguments": { ... }}`;
+IMPORTANT RULES:
+- ALWAYS prioritize what the user asks for - your job is to help them accomplish their goals
+- Use the 'evalCode' tool for all math, logic, date/time calculations, and JavaScript execution
+- Reply naturally to greetings (e.g., "Hi", "Hello") without using tools
+- When the user asks you to do something, DO IT - don't just explain how to do it
+- Output strictly valid JSON for tool calls: {"name": "tool_name", "arguments": { ... }}
+- Be proactive and helpful - if you can solve the user's problem with available tools, do so immediately`;
 
 // --- Global Singleton State ---
 const worker = ref(null);
@@ -76,22 +81,17 @@ export function useChat() {
       headers: s.headers
     }));
     localStorage.setItem('mcp_configs', JSON.stringify(data));
-    localStorage.setItem('custom_system_prompt', customSystemPrompt.value);
+    // Note: System prompt is now per-project, not global
 
-    // Save last active chat/project state?
-    if (currentProjectId.value) localStorage.setItem('last_project_id', currentProjectId.value);
+    // Save last active chat/project state
     if (currentProjectId.value) localStorage.setItem('last_project_id', currentProjectId.value);
     if (activeChatId.value) localStorage.setItem('last_chat_id', activeChatId.value);
     localStorage.setItem('use_safe_eval', String(useSafeEval.value));
   };
 
   const loadFromStorage = async () => {
-    const savedPrompt = localStorage.getItem('custom_system_prompt');
-    if (savedPrompt) {
-      customSystemPrompt.value = savedPrompt;
-    } else {
-      customSystemPrompt.value = DEFAULT_SYSTEM_PROMPT;
-    }
+    // System prompt is now loaded per-project in selectProject
+    // No longer loading global system prompt here
 
     const saved = localStorage.getItem('mcp_configs');
     if (saved) {
@@ -111,9 +111,23 @@ export function useChat() {
     }
   };
 
-  const resetSystemPrompt = () => {
+  const resetSystemPrompt = async () => {
     customSystemPrompt.value = DEFAULT_SYSTEM_PROMPT;
-    saveToStorage();
+    // Save to current project
+    if (currentProjectId.value) {
+      await updateProjectSystemPrompt(DEFAULT_SYSTEM_PROMPT);
+    }
+  };
+
+  const updateProjectSystemPrompt = async (newPrompt) => {
+    if (!currentProjectId.value) return;
+
+    const project = projects.value.find(p => p.id === currentProjectId.value);
+    if (project) {
+      project.systemPrompt = newPrompt;
+      await messageStore.updateProject(toRaw(project));
+      customSystemPrompt.value = newPrompt;
+    }
   };
 
   // --- Project/Chat Logic ---
@@ -134,6 +148,15 @@ export function useChat() {
 
   const selectProject = async (projectId) => {
     currentProjectId.value = projectId;
+
+    // Load project's system prompt
+    const project = projects.value.find(p => p.id === projectId);
+    if (project) {
+      customSystemPrompt.value = project.systemPrompt || DEFAULT_SYSTEM_PROMPT;
+    } else {
+      customSystemPrompt.value = DEFAULT_SYSTEM_PROMPT;
+    }
+
     chats.value = await messageStore.getChats(projectId);
 
     // If we have chats, load the last active one, OR the most recent one
@@ -1203,6 +1226,7 @@ export function useChat() {
     useSafeEval,
     saveToStorage,
     resetSystemPrompt,
+    updateProjectSystemPrompt,
     // --- Projects & Chats ---
     projects,
     currentProjectId,

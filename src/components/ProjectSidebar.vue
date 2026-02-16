@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { useChat } from '../composables/useChat';
 import { 
   Folder, MessageSquare, Plus, ChevronRight, ChevronDown, 
-  MoreHorizontal, Trash2, Edit2, Settings, Monitor, GripVertical
+  MoreHorizontal, Trash2, Edit2, Settings, Monitor, GripVertical, Cpu
 } from 'lucide-vue-next';
 
 // Use the shared composable
@@ -12,7 +12,8 @@ const {
   loadProjects, selectProject, createProject, deleteProject,
   selectChat, createNewChat, deleteChat, renameChat,
   selectedModel, availableModels, switchModel,
-  mcpServers, addServer, removeServer, toggleServer
+  mcpServers, addServer, removeServer, toggleServer,
+  customSystemPrompt, updateProjectSystemPrompt, resetSystemPrompt
 } = useChat();
 
 const expandedProjects = ref(new Set());
@@ -20,6 +21,8 @@ const isNewProjectModalOpen = ref(false);
 const newProjectName = ref("");
 const editingChatId = ref(null);
 const editChatTitle = ref("");
+const isSystemPromptModalOpen = ref(false);
+const editingSystemPrompt = ref("");
 
 // Props for communication with parent
 const props = defineProps({
@@ -68,6 +71,21 @@ const saveChatTitle = async () => {
     editingChatId.value = null;
 };
 
+const openSystemPromptEditor = () => {
+    editingSystemPrompt.value = customSystemPrompt.value;
+    isSystemPromptModalOpen.value = true;
+};
+
+const saveSystemPrompt = async () => {
+    await updateProjectSystemPrompt(editingSystemPrompt.value);
+    isSystemPromptModalOpen.value = false;
+};
+
+const resetToDefault = async () => {
+    await resetSystemPrompt();
+    editingSystemPrompt.value = customSystemPrompt.value;
+};
+
 // MCP & Model logic borrowed from Sidebar
 </script>
 
@@ -105,6 +123,14 @@ const saveChatTitle = async () => {
                     <span class="text-sm font-medium truncate flex-1">{{ project.name }}</span>
                     
                     <div class="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                        <button 
+                            v-if="currentProjectId === project.id"
+                            @click.stop="openSystemPromptEditor" 
+                            class="hover:bg-blue-500/20 hover:text-blue-400 p-1 rounded transition-all"
+                            title="Edit System Prompt"
+                        >
+                            <Cpu class="size-3.5" />
+                        </button>
                         <button 
                             @click.stop="deleteProject(project.id)" 
                             class="hover:bg-red-500/20 hover:text-red-400 p-1 rounded transition-all"
@@ -235,6 +261,36 @@ const saveChatTitle = async () => {
             <div class="flex justify-end gap-2">
                 <button @click="isNewProjectModalOpen = false" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
                 <button @click="handleCreateProject" class="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Prompt Modal -->
+    <div v-if="isSystemPromptModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-2xl shadow-2xl flex flex-col" style="max-height: 80vh;">
+            <div class="mb-4">
+                <h3 class="text-lg font-bold text-white">Edit System Prompt</h3>
+                <p class="text-xs text-gray-500 mt-1">
+                    Project: {{ projects.find(p => p.id === currentProjectId)?.name || 'Unknown' }}
+                </p>
+            </div>
+            
+            <textarea 
+                v-model="editingSystemPrompt" 
+                placeholder="Customize system prompt... Use {{listTools}} to inject tools."
+                class="w-full flex-1 bg-black border border-gray-700 rounded-lg px-4 py-3 text-sm text-white mb-4 focus:ring-1 focus:ring-emerald-500 outline-none placeholder-gray-600 resize-none font-mono leading-relaxed"
+                style="min-height: 300px;"
+            ></textarea>
+
+            <div class="flex justify-between items-center pt-4 border-t border-gray-800">
+                <button @click="resetToDefault" class="text-xs text-red-400 hover:text-red-300 font-medium flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-red-900/20 transition-all">
+                    <Trash2 class="size-3" /> Reset to Default
+                </button>
+                
+                <div class="flex gap-2">
+                    <button @click="isSystemPromptModalOpen = false" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+                    <button @click="saveSystemPrompt" class="px-6 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold">Save</button>
+                </div>
             </div>
         </div>
     </div>

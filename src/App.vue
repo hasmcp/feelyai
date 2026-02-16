@@ -14,10 +14,10 @@ const {
   approveToolCalls, cancelToolCalls,
   messages, isModelLoading, isGenerating, stop,
   loadProgress, loadText, pendingToolCalls, isChatStarted, startChat,
-  customSystemPrompt, saveToStorage, resetSystemPrompt,
+  customSystemPrompt, saveToStorage, resetSystemPrompt, updateProjectSystemPrompt,
   useSafeEval,
   // New
-  activeChatTitle, availableModels, selectedModel
+  activeChatTitle, availableModels, selectedModel, currentProjectId, projects
 } = useChat();
 
 const isSettingsOpen = ref(false);
@@ -110,7 +110,12 @@ const handleAddServer = (serverData) => {
       style="background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px);">
       <div class="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-6 flex flex-col h-[36vh]">
         <div class="flex items-center justify-between mb-6">
-          <h3 class="text-xl font-bold text-white tracking-tight">System Instructions</h3>
+          <div>
+            <h3 class="text-xl font-bold text-white tracking-tight">System Instructions</h3>
+            <p v-if="currentProjectId" class="text-xs text-gray-500 mt-1">
+              Project: {{ projects.find(p => p.id === currentProjectId)?.name || 'Unknown' }}
+            </p>
+          </div>
           <button @click="isSettingsOpen = false" class="text-gray-400 hover:text-white transition-colors">
             <XCircle class="size-6" />
           </button>
@@ -120,7 +125,6 @@ const handleAddServer = (serverData) => {
           <textarea v-model="customSystemPrompt" 
             placeholder="Customize system prompt... Use {{listTools}} to inject tools."
             class="w-full flex-1 bg-gray-950 border border-gray-800 rounded-xl px-4 py-4 text-sm focus:ring-1 focus:ring-emerald-500 outline-none placeholder-gray-600 resize-none font-mono leading-relaxed custom-scrollbar text-gray-300"
-            @change="saveToStorage"
           ></textarea>
 
           <div class="mt-4 flex items-center justify-between bg-gray-950/50 p-3 rounded-xl border border-gray-800">
@@ -152,7 +156,7 @@ const handleAddServer = (serverData) => {
             <Trash2 class="size-3" /> Reset to Default
           </button>
           
-          <button @click="isSettingsOpen = false; saveToStorage()" 
+          <button @click="updateProjectSystemPrompt(customSystemPrompt); isSettingsOpen = false" 
             class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-900/20">
             Save & Close
           </button>
