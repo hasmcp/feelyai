@@ -56,7 +56,7 @@ const handleAddServer = (serverData) => {
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-950 text-gray-100 antialiased font-sans overflow-hidden">
+  <div class="flex h-dvh bg-gray-950 text-gray-100 antialiased font-sans overflow-hidden">
 
     <AddServerModal 
       :isOpen="isAddServerOpen" 
@@ -307,7 +307,7 @@ const handleAddServer = (serverData) => {
           <div
             class="max-w-3xl mx-auto relative flex items-center bg-gray-800 border border-gray-700 rounded-2xl focus-within:border-emerald-500/50 transition-all px-4 py-2 shadow-xl">
             <textarea v-model="userInput" @keydown.enter.prevent="onSend" placeholder="Ask a question or use a tool..."
-              class="flex-1 bg-transparent border-none outline-none resize-none py-2 h-12 max-h-32 text-sm placeholder-gray-500 text-gray-100" :disabled="isModelLoading" />
+              class="flex-1 bg-transparent border-none outline-none resize-none py-2 h-12 max-h-32 text-base placeholder-gray-500 text-gray-100" :disabled="isModelLoading" />
             
             <button v-if="!isGenerating" @click="onSend" :disabled="!userInput.trim() || isModelLoading"
               class="p-2.5 bg-emerald-600 rounded-xl hover:bg-emerald-500 disabled:opacity-50 transition-all cursor-pointer">

@@ -377,7 +377,10 @@ defineExpose({
                         <span v-else class="truncate flex-1">{{ chat.title }}</span>
 
                         <!-- Chat Actions -->
-                        <div class="hidden group-hover:flex items-center gap-1 absolute right-2 bg-gray-900 shadow-xl pl-2 rounded-l-lg">
+                        <div 
+                            class="items-center gap-1 absolute right-2 bg-gray-900 shadow-xl pl-2 rounded-l-lg"
+                            :class="isMobile ? 'flex opacity-100' : 'hidden group-hover:flex'"
+                        >
                             <button @click.stop="startEditing(chat)" class="p-1 hover:text-white transition-colors">
                                 <Edit2 class="size-3" />
                             </button>

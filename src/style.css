@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
 /* Optional: Custom scrollbar for a sleeker look */
 ::-webkit-scrollbar {
   width: 8px;
