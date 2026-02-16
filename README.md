@@ -49,16 +49,23 @@ FeelyAI includes powerful built-in tools:
 
 ### 💬 **Advanced Chat Management**
 - **Projects & Chats** - Organize conversations into projects
+- **🔐 Encrypted Projects** - Password-protect sensitive projects with client-side AES-GCM encryption
+  - All chats, messages, and system prompts encrypted locally
+  - Auto-lock on page reload for security
+  - Passwords hashed with bcryptjs (never stored in plain text)
+  - Unique encryption keys per project using PBKDF2
 - **Persistent Storage** - All chats saved locally using IndexedDB
 - **Auto-titling** - Chats automatically named from first message
 - **Message History** - Full conversation history with tool calls and outputs
 - **Markdown Support** - Rich text rendering with syntax highlighting
 
 ### ⚙️ **Customizable System Prompts**
+- **Per-Project System Prompts** - Each project can have its own custom system instructions
 - Edit system instructions to customize AI behavior
 - Template variables for dynamic tool injection (`{{listTools}}`, `{{tool_names}}`)
 - Reset to defaults anytime
 - Persistent across sessions
+- Encrypted along with project data for password-protected projects
 
 ### 🎨 **Modern UI/UX**
 - Clean, dark-themed interface
@@ -141,6 +148,7 @@ Control which tools the AI can execute:
 - **Markdown**: markdown-it
 - **Storage**: IndexedDB (via idb)
 - **Validation**: Ajv (JSON Schema)
+- **Encryption**: bcryptjs + Web Crypto API (AES-GCM)
 
 ## 🏗️ Architecture
 
@@ -154,7 +162,8 @@ src/
 │   └── useChat.js             # Main chat logic & state
 ├── services/
 │   ├── McpClient.js           # MCP protocol client
-│   └── MessageStore.js        # IndexedDB persistence
+│   ├── MessageStore.js        # IndexedDB persistence
+│   └── EncryptionService.js   # Client-side encryption
 ├── workers/
 │   ├── llm.worker.js          # WebLLM worker
 │   └── eval.worker.js         # Safe code execution
