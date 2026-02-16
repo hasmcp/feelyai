@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useChat } from '../composables/useChat';
 import { 
   Folder, MessageSquare, Plus, ChevronRight, ChevronDown, 
-  MoreHorizontal, Trash2, Edit2, Settings, Monitor, GripVertical, Cpu
+  MoreHorizontal, Trash2, Edit2, Settings, Monitor, GripVertical, Cpu,
+  Menu, X, PanelLeftClose, PanelLeft
 } from 'lucide-vue-next';
 
 // Use the shared composable
@@ -24,13 +25,62 @@ const editChatTitle = ref("");
 const isSystemPromptModalOpen = ref(false);
 const editingSystemPrompt = ref("");
 
+// Tooltip state
+const hoveredProject = ref(null);
+const tooltipPosition = ref({ x: 0, y: 0 });
+
+// Responsive sidebar state
+const isSidebarCollapsed = ref(false);
+const isMobileMenuOpen = ref(false);
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024);
+
+const isMobile = computed(() => windowWidth.value < 768);
+
+// Load sidebar state from localStorage
+const loadSidebarState = () => {
+  const saved = localStorage.getItem('sidebar_collapsed');
+  if (saved !== null) {
+    isSidebarCollapsed.value = saved === 'true';
+  }
+};
+
+// Save sidebar state to localStorage
+const saveSidebarState = () => {
+  localStorage.setItem('sidebar_collapsed', String(isSidebarCollapsed.value));
+};
+
+// Toggle sidebar collapse (desktop)
+const toggleSidebarCollapse = () => {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value;
+  saveSidebarState();
+};
+
+// Toggle mobile menu
+const toggleMobileMenu = () => {
+  isMobileMenuOpen.value = !isMobileMenuOpen.value;
+};
+
+// Close mobile menu
+const closeMobileMenu = () => {
+  isMobileMenuOpen.value = false;
+};
+
+// Handle window resize
+const handleResize = () => {
+  windowWidth.value = window.innerWidth;
+  // Auto-close mobile menu when switching to desktop
+  if (!isMobile.value) {
+    isMobileMenuOpen.value = false;
+  }
+};
+
 // Props for communication with parent
 const props = defineProps({
   isSettingsOpen: Boolean,
   isAddServerOpen: Boolean
 });
 
-const emit = defineEmits(['open-settings', 'open-add-server']);
+const emit = defineEmits(['open-settings', 'open-add-server', 'toggle-mobile-menu']);
 
 // Toggle project expansion
 const toggleProject = (projectId) => {
@@ -41,6 +91,11 @@ const toggleProject = (projectId) => {
     // Let's allow multi-expand but auto-select the project on click
     expandedProjects.value.add(projectId);
     selectProject(projectId);
+  }
+  
+  // Close mobile menu after selection
+  if (isMobile.value) {
+    closeMobileMenu();
   }
 };
 
@@ -86,17 +141,92 @@ const resetToDefault = async () => {
     editingSystemPrompt.value = customSystemPrompt.value;
 };
 
+const handleSelectChat = async (chatId) => {
+  await selectChat(chatId);
+  // Close mobile menu after selection
+  if (isMobile.value) {
+    closeMobileMenu();
+  }
+};
+
+// Tooltip handlers
+const showTooltip = (event, project) => {
+  if (!isSidebarCollapsed.value) return;
+  hoveredProject.value = project;
+  const rect = event.currentTarget.getBoundingClientRect();
+  tooltipPosition.value = {
+    x: rect.right + 8,
+    y: rect.top + (rect.height / 2)
+  };
+};
+
+const hideTooltip = () => {
+  hoveredProject.value = null;
+};
+
+onMounted(() => {
+  loadSidebarState();
+  window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize);
+});
+
+// Expose functions to parent component
+defineExpose({
+  toggleMobileMenu
+});
+
 // MCP & Model logic borrowed from Sidebar
 </script>
 
 <template>
-  <aside class="w-80 border-r border-gray-800 flex flex-col bg-gray-950 flex-shrink-0">
+  <!-- Mobile Backdrop -->
+  <div 
+    v-if="isMobile && isMobileMenuOpen" 
+    @click="closeMobileMenu"
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+  ></div>
+
+  <aside 
+    :class="[
+      'border-r border-gray-800 flex flex-col bg-gray-950 transition-all duration-300',
+      // Desktop: collapsible sidebar
+      !isMobile && isSidebarCollapsed ? 'w-16' : 'w-80',
+      // Mobile: fixed overlay drawer
+      isMobile ? 'fixed inset-y-0 left-0 z-50 transform' : 'flex-shrink-0',
+      isMobile && !isMobileMenuOpen ? '-translate-x-full' : 'translate-x-0'
+    ]"
+  >
     <!-- Header / Branding -->
-    <div class="h-14 px-4 border-b border-gray-800 flex items-center gap-3 shrink-0">
-        <div class="bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
-            <img src="/favicon.svg" class="size-5" alt="Logo" />
+    <div class="h-14 px-4 border-b border-gray-800 flex items-center gap-3 shrink-0 justify-between">
+        <div v-if="isMobile || !isSidebarCollapsed" class="flex items-center gap-3 min-w-0">
+            <div class="bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 flex-shrink-0">
+                <img src="/favicon.svg" class="size-5" alt="Logo" />
+            </div>
+            <h1 class="font-bold text-lg tracking-tight text-white truncate">FeelyAI</h1>
         </div>
-        <h1 class="font-bold text-lg tracking-tight text-white">FeelyAI</h1>
+        
+        <!-- Desktop: Collapse Toggle -->
+        <button 
+            v-if="!isMobile"
+            @click="toggleSidebarCollapse" 
+            class="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+            :title="isSidebarCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'"
+        >
+            <PanelLeftClose v-if="!isSidebarCollapsed" class="size-5" />
+            <PanelLeft v-else class="size-5" />
+        </button>
+        
+        <!-- Mobile: Close Button -->
+        <button 
+            v-if="isMobile"
+            @click="closeMobileMenu" 
+            class="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+        >
+            <X class="size-5" />
+        </button>
     </div>
 
     <!-- Projects & Chats List -->
@@ -104,9 +234,14 @@ const resetToDefault = async () => {
         
         <!-- Projects Section -->
         <div class="space-y-1">
-            <div class="flex items-center justify-between px-2 mb-2">
+            <div v-if="isMobile || !isSidebarCollapsed" class="flex items-center justify-between px-2 mb-2">
                 <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Projects</h2>
                 <button @click="isNewProjectModalOpen = true" class="text-gray-500 hover:text-emerald-400 transition-colors">
+                    <Plus class="size-4" />
+                </button>
+            </div>
+            <div v-else class="flex justify-center mb-2">
+                <button @click="isNewProjectModalOpen = true" class="text-gray-500 hover:text-emerald-400 transition-colors p-2" title="New Project">
                     <Plus class="size-4" />
                 </button>
             </div>
@@ -115,14 +250,25 @@ const resetToDefault = async () => {
                 <!-- Project Item -->
                 <div 
                     @click="toggleProject(project.id)"
-                    class="group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors select-none"
-                    :class="currentProjectId === project.id ? 'bg-gray-900 text-emerald-400' : 'hover:bg-gray-900 text-gray-400'"
+                    @mouseenter="(e) => showTooltip(e, project)"
+                    @mouseleave="hideTooltip"
+                    :class="[
+                        'group flex items-center gap-2 rounded-lg cursor-pointer transition-colors select-none relative',
+                        (isMobile || !isSidebarCollapsed) ? 'px-3 py-2' : 'px-2 py-2 justify-center',
+                        currentProjectId === project.id ? 'bg-gray-900 text-emerald-400' : 'hover:bg-gray-900 text-gray-400'
+                    ]"
                 >
-                    <component :is="expandedProjects.has(project.id) ? ChevronDown : ChevronRight" class="size-3.5 opacity-75" />
+                    <component v-if="isMobile || !isSidebarCollapsed" :is="expandedProjects.has(project.id) ? ChevronDown : ChevronRight" class="size-3.5 opacity-75" />
                     <Folder class="size-4" :class="currentProjectId === project.id ? 'fill-emerald-400/20' : ''" />
-                    <span class="text-sm font-medium truncate flex-1">{{ project.name }}</span>
+                    <span v-if="isMobile || !isSidebarCollapsed" class="text-sm font-medium truncate flex-1">{{ project.name }}</span>
                     
-                    <div class="opacity-0 group-hover:opacity-100 flex items-center gap-1">
+                    <div 
+                        v-if="isMobile || !isSidebarCollapsed" 
+                        :class="[
+                            'flex items-center gap-1',
+                            isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        ]"
+                    >
                         <button 
                             v-if="currentProjectId === project.id"
                             @click.stop="openSystemPromptEditor" 
@@ -150,13 +296,13 @@ const resetToDefault = async () => {
                 </div>
 
                 <!-- Chats List (for this project) -->
-                <div v-if="expandedProjects.has(project.id)" class="pl-4 space-y-0.5 border-l border-gray-800 ml-5">
+                <div v-if="expandedProjects.has(project.id) && (isMobile || !isSidebarCollapsed)" class="pl-4 space-y-0.5 border-l border-gray-800 ml-5">
                     <div 
                         v-for="chat in (project.id === currentProjectId ? chats : [])" 
                         :key="chat.id"
                         class="group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors relative"
                         :class="activeChatId === chat.id ? 'bg-emerald-500/10 text-emerald-400' : 'hover:bg-gray-900 text-gray-400'"
-                        @click="selectChat(chat.id)"
+                        @click="handleSelectChat(chat.id)"
                     >
                         <MessageSquare class="size-3.5 opacity-70" />
                         
@@ -190,7 +336,7 @@ const resetToDefault = async () => {
         </div>
 
         <!-- MCP Servers (Moved from App.vue) -->
-        <div class="pt-6 border-t border-gray-800">
+        <div v-if="isMobile || !isSidebarCollapsed" class="pt-6 border-t border-gray-800">
              <div class="flex items-center justify-between px-2 mb-3">
                 <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                     <Monitor class="size-3" /> MCP Servers
@@ -225,7 +371,7 @@ const resetToDefault = async () => {
     </div>
 
     <!-- Footer / Model Selector -->
-    <div class="p-6 border-t border-gray-800 bg-gray-900/50">
+    <div v-if="isMobile || !isSidebarCollapsed" class="p-6 border-t border-gray-800 bg-gray-900/50">
         <div class="mb-3">
             <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Active Model</label>
              <div class="relative">
@@ -240,10 +386,20 @@ const resetToDefault = async () => {
                 </div>
             </div>
         </div>
-        
-        <button @click="emit('open-settings')" class="w-full flex items-center justify-center gap-2 py-2 bg-gray-800 hover:bg-gray-750 border border-gray-700/50 hover:border-gray-600 rounded-lg text-xs font-medium text-gray-400 transition-all">
-            <Settings class="size-3.5" />
-            Settings
+        <button @click="emit('open-settings')" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-white transition-all text-sm">
+            <Settings class="size-4" />
+            <span>Settings</span>
+        </button>
+    </div>
+
+    <!-- Footer Collapsed Mode -->
+    <div v-if="!isMobile && isSidebarCollapsed" class="p-3 border-t border-gray-800 bg-gray-900/50 flex justify-center">
+        <button 
+            @click="emit('open-settings')" 
+            class="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-all"
+            title="Settings"
+        >
+            <Settings class="size-5" />
         </button>
     </div>
 
@@ -295,4 +451,35 @@ const resetToDefault = async () => {
         </div>
     </div>
   </aside>
+
+  <!-- Custom Tooltip -->
+  <Transition
+    enter-active-class="transition-all duration-150 ease-out"
+    enter-from-class="opacity-0 scale-95"
+    enter-to-class="opacity-100 scale-100"
+    leave-active-class="transition-all duration-100 ease-in"
+    leave-from-class="opacity-100 scale-100"
+    leave-to-class="opacity-0 scale-95"
+  >
+    <div
+      v-if="hoveredProject && isSidebarCollapsed"
+      :style="{
+        position: 'fixed',
+        left: `${tooltipPosition.x}px`,
+        top: `${tooltipPosition.y}px`,
+        transform: 'translateY(-50%)',
+        zIndex: 100
+      }"
+      class="px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg shadow-xl pointer-events-none"
+    >
+      <div class="text-xs font-medium text-white whitespace-nowrap">
+        {{ hoveredProject.name }}
+      </div>
+      <!-- Arrow pointing left -->
+      <div 
+        class="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-800"
+        style="margin-right: -1px;"
+      ></div>
+    </div>
+  </Transition>
 </template>

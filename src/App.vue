@@ -4,7 +4,7 @@ import { useChat } from './composables/useChat';
 import MarkdownIt from 'markdown-it';
 import {
   Send, Bot, Trash2, Terminal,
-  Loader2, ShieldCheck, XCircle, Square
+  Loader2, ShieldCheck, XCircle, Square, Menu
 } from 'lucide-vue-next';
 import AddServerModal from './components/AddServerModal.vue';
 import ProjectSidebar from './components/ProjectSidebar.vue';
@@ -217,6 +217,7 @@ const handleAddServer = (serverData) => {
     <!-- CHAT INTERFACE -->
     <template v-else>
       <ProjectSidebar 
+        ref="sidebar"
         :isSettingsOpen="isSettingsOpen"
         :isAddServerOpen="isAddServerOpen"
         @open-settings="isSettingsOpen = true"
@@ -225,7 +226,15 @@ const handleAddServer = (serverData) => {
 
       <main class="flex-1 flex flex-col relative bg-gray-950 min-w-0">
         <!-- Chat Header -->
-        <div class="h-14 border-b border-gray-800 flex items-center px-6 bg-gray-950/50 backdrop-blur-sm sticky top-0 z-10">
+        <div class="h-14 border-b border-gray-800 flex items-center px-6 bg-gray-950/50 backdrop-blur-sm sticky top-0 z-10 gap-3">
+            <!-- Mobile: Hamburger Menu Button -->
+            <button 
+              @click="$refs.sidebar.toggleMobileMenu()" 
+              class="md:hidden text-gray-400 hover:text-white transition-colors"
+              aria-label="Toggle Menu"
+            >
+              <Menu class="size-5" />
+            </button>
             <h2 class="font-bold text-gray-200 truncate">{{ activeChatTitle }}</h2>
         </div>
 
